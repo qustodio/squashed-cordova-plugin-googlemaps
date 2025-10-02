@@ -48,3 +48,26 @@ You might be interested in the https://github.com/4sh/squashed-cordova-plugin-go
     - Fix: HTMLColor2RGBA() converts to incorrect value
     - Fix: (Android) Can't load marker image from the Internet
     - many bug fixes...
+
+## Rebuilding the bundled tbxml dependency
+
+Google Play now enforces 16 KB memory pages for native code. The original
+`tbxml-android.aar` shipped with this plugin was built with Android NDK r17 and
+does not meet that requirement, which triggered policy warnings. We now ship a
+locally rebuilt AAR compiled with a modern NDK (r26d tested) and provide tooling
+to regenerate it when needed.
+
+To produce a fresh AAR:
+
+1. Download/extract an Android NDK r23b or newer.
+2. From the project root run:
+   ```bash
+   npm run build:tbxml -- --ndk /path/to/android-ndk-r26d
+   ```
+   You can also rely on `NDK_HOME`, `ANDROID_NDK_HOME`, or `NDK_BUILD` if those
+   env vars point to a valid installation.
+3. The script writes `tools/tbxml-android/build/tbxml-android.aar`. Copy it to
+   `src/android/frameworks/` if you want to update the plugin artifact.
+
+The helper script and native sources live under `tools/tbxml-android/`; see the
+README in that directory for additional details.

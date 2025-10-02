@@ -45,3 +45,8 @@ hooks/
 out/
 node_modules/
 package-lock.json
+# tbxml tooling outputs
+/tools/tbxml-android/build/
+/tools/tbxml-android/libs/
+/tools/tbxml-android/obj/
+/tools/android-ndk-*/
