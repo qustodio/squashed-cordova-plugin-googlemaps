@@ -46,7 +46,8 @@
     "test": "jest && npm run eslint",
     "jest": "jest",
     "test:watch": "jest --watch",
-    "eslint": "node node_modules/eslint/bin/eslint www src"
+    "eslint": "node node_modules/eslint/bin/eslint www src",
+    "build:tbxml": "bash ./tools/tbxml-android/build-aar.sh"
   },
   "author": "Masashi Katsumata, Hirbod Mirjavadi",
   "license": "Apache-2.0",
