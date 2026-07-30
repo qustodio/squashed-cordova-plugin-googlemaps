@@ -665,7 +665,12 @@ public class MyPluginLayout extends FrameLayout implements ViewTreeObserver.OnSc
       Iterator<Map.Entry<String, IPluginView>> iterator =  pluginOverlays.entrySet().iterator();
       Entry<String, IPluginView> entry;
 
-      PointF clickPoint = new PointF(event.getX(), event.getY());
+      // The touch arrives in this layout's coordinates, but HTMLNodeRectFs are relative to the
+      // WebView viewport. Subtract the WebView layout offset (non-zero once Cordova 15 insets it
+      // via margins) so both live in the same space.
+      PointF clickPoint = new PointF(
+        event.getX() - browserView.getLeft(),
+        event.getY() - browserView.getTop());
 
       RectF drawRect;
 
@@ -721,6 +726,8 @@ public class MyPluginLayout extends FrameLayout implements ViewTreeObserver.OnSc
       Entry<String, IPluginView> entry;
       RectF mapRect;
       synchronized (_lockHtmlNodes) {
+        int saveCount = canvas.save();
+        canvas.translate(browserView.getLeft(), browserView.getTop());
         while (iterator.hasNext()) {
           entry = iterator.next();
           pluginOverlay = entry.getValue();
@@ -732,6 +739,7 @@ public class MyPluginLayout extends FrameLayout implements ViewTreeObserver.OnSc
           debugPaint.setColor(Color.argb(100, 0, 255, 0));
           canvas.drawRect(mapRect, debugPaint);
         }
+        canvas.restoreToCount(saveCount);
       }
 
 
