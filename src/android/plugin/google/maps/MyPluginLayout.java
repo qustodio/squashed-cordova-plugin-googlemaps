@@ -20,6 +20,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 
+import org.apache.cordova.CordovaPreferences;
 import org.apache.cordova.CordovaWebView;
 import org.json.JSONObject;
 
@@ -96,8 +97,11 @@ public class MyPluginLayout extends FrameLayout implements ViewTreeObserver.OnSc
 
         int width = (int)drawRect.width();
         int height = (int)drawRect.height();
-        int x = (int) drawRect.left;
-        int y = (int) drawRect.top + scrollY;
+        // Cordova 15 insets the WebView via LayoutParams margins while MyPluginLayout
+        // remains full-screen at (0,0). Add the WebView's layout offset so the native
+        // overlay aligns with the HTML map hole. No-op when margins are 0 (Cordova 14).
+        int x = (int) drawRect.left + browserView.getLeft();
+        int y = (int) drawRect.top + scrollY + browserView.getTop();
 
 
 
@@ -185,6 +189,7 @@ public class MyPluginLayout extends FrameLayout implements ViewTreeObserver.OnSc
     this.addView(scrollView);
     this.addView(frontLayer);
     root.addView(this);
+    restoreCordovaStatusBarOverlay(root, webView);
     browserView.setBackgroundColor(Color.TRANSPARENT);
     /*
     if("org.xwalk.core.XWalkView".equals(browserView.getClass().getName())
@@ -204,6 +209,41 @@ public class MyPluginLayout extends FrameLayout implements ViewTreeObserver.OnSc
     scrollView.setHorizontalScrollBarEnabled(false);
     scrollView.setVerticalScrollBarEnabled(false);
     startTimer();
+  }
+
+  /**
+   * cordova-android 15 draws the status bar with a plain View tagged "statusBarView" in the
+   * activity root, coloured by the platform's SystemBarPlugin. That plugin resolves the root
+   * through the WebView's parent, so re-parenting the WebView above makes the view unreachable:
+   * it never gets coloured, and this layout is added after it, covering the top inset.
+   * No-op on cordova-android 14 and older, where the colour came from the window decor.
+   */
+  private void restoreCordovaStatusBarOverlay(ViewGroup root, CordovaWebView webView) {
+    View statusBarView = null;
+    for (int i = 0; i < root.getChildCount(); i++) {
+      if ("statusBarView".equals(root.getChildAt(i).getTag())) {
+        statusBarView = root.getChildAt(i);
+        break;
+      }
+    }
+    if (statusBarView == null) {
+      return;
+    }
+
+    CordovaPreferences preferences = webView.getPreferences();
+    String colorPref = preferences == null
+      ? null
+      : preferences.getString("StatusBarBackgroundColor", null);
+
+    if (colorPref != null && !colorPref.isEmpty()) {
+      try {
+        statusBarView.setBackgroundColor(Color.parseColor(colorPref));
+      } catch (IllegalArgumentException ignore) {
+        Log.w(TAG, "Invalid StatusBarBackgroundColor, keeping the platform default: " + colorPref);
+      }
+    }
+
+    root.bringChildToFront(statusBarView);
   }
 
   public synchronized void stopTimer() {
@@ -625,7 +665,12 @@ public class MyPluginLayout extends FrameLayout implements ViewTreeObserver.OnSc
       Iterator<Map.Entry<String, IPluginView>> iterator =  pluginOverlays.entrySet().iterator();
       Entry<String, IPluginView> entry;
 
-      PointF clickPoint = new PointF(event.getX(), event.getY());
+      // The touch arrives in this layout's coordinates, but HTMLNodeRectFs are relative to the
+      // WebView viewport. Subtract the WebView layout offset (non-zero once Cordova 15 insets it
+      // via margins) so both live in the same space.
+      PointF clickPoint = new PointF(
+        event.getX() - browserView.getLeft(),
+        event.getY() - browserView.getTop());
 
       RectF drawRect;
 
@@ -681,6 +726,8 @@ public class MyPluginLayout extends FrameLayout implements ViewTreeObserver.OnSc
       Entry<String, IPluginView> entry;
       RectF mapRect;
       synchronized (_lockHtmlNodes) {
+        int saveCount = canvas.save();
+        canvas.translate(browserView.getLeft(), browserView.getTop());
         while (iterator.hasNext()) {
           entry = iterator.next();
           pluginOverlay = entry.getValue();
@@ -692,6 +739,7 @@ public class MyPluginLayout extends FrameLayout implements ViewTreeObserver.OnSc
           debugPaint.setColor(Color.argb(100, 0, 255, 0));
           canvas.drawRect(mapRect, debugPaint);
         }
+        canvas.restoreToCount(saveCount);
       }
 
 
